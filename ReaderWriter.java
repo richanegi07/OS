@@ -1,80 +1,84 @@
 import java.util.Scanner;
-class Resource{
-    int data = 0,readers = 0;
-    boolean writing = false;
+import java.util.concurrent.Semaphore;
 
-    synchronized void read() throws InterruptedException{
-        while(writing){
-            wait();
+class Resource {
+    int data = 0, readCount = 0;
+    Semaphore mutex = new Semaphore(1);
+    Semaphore write = new Semaphore(1);
+
+    void read(int id) throws InterruptedException {
+        mutex.acquire();
+        readCount++;
+        if (readCount == 1) {
+            write.acquire();
         }
-        readers++;
-        System.out.println("Reader is reading: " + data);
+        mutex.release();
+        System.out.println("Reader " + id + " is reading: " + data);
         Thread.sleep(500);
-        readers--;
-        if(readers == 0)
-        notifyAll();
+        mutex.acquire();
+        readCount--;
+        if (readCount == 0) {
+            write.release();
+        }
+        mutex.release();
     }
 
-    synchronized void write(int value) throws InterruptedException{
-        while(writing || readers > 0){
-            wait();
-        }
-        writing = true;
+    void write(int id, int value) throws InterruptedException {
+        write.acquire();
         data = value;
-        System.out.println("Writer wrote: " + data);
+        System.out.println("Writer " + id + " is writing: " + data);
         Thread.sleep(500);
-        writing = false;
-        notifyAll();
+        write.release();
     }
 }
 
-class Reader extends Thread{
+class Reader extends Thread {
     Resource r;
-    int n;
-    Reader(Resource r,int n){
-        this.r=r;
-        this.n=n;
+    int id;
+    Reader(Resource r, int id) {
+        this.r = r;
+        this.id = id;
     }
-    public void run(){
-        try{
-            for(int i=1;i<=n;i++)
-            r.read();
-        }
-        catch(InterruptedException e){
-        System.out.println(e);
+    public void run() {
+        try {
+            r.read(id);
+        } catch (InterruptedException e) {
+            System.out.println(e);
         }
     }
 }
 
-class Writer extends Thread{
+class Writer extends Thread {
     Resource r;
-    int n;
-    Writer(Resource r,int n){
-        this.r=r;
-        this.n=n;
+    int id;
+    Writer(Resource r, int id) {
+        this.r = r;
+        this.id = id;
     }
-    public void run(){
-        try{
-            for(int i=1;i<=n;i++)
-            r.write(i);
-        }
-        catch(InterruptedException e){
-        System.out.println(e);
+    public void run() {
+        try {
+            r.write(id, id);
+        } catch (InterruptedException e) {
+            System.out.println(e);
         }
     }
 }
 
-public class ReaderWriter{
-    public static void main(String[] args){
-        Scanner sc=new Scanner(System.in);
-        System.out.print("Enter number of values: ");
-        int n=sc.nextInt();
+public class ReaderWriter {
+    public static void main(String[] args) {
+        Scanner sc = new Scanner(System.in);
+        System.out.print("Enter number of readers: ");
+        int nr = sc.nextInt();
+        System.out.print("Enter number of writers: ");
+        int nw = sc.nextInt();
         Resource r = new Resource();
-        Reader r1 = new Reader(r,n);
-        Reader r2 = new Reader(r,n);
-        Writer w1 = new Writer(r,n);
-        r1.start();
-        r2.start();
-        w1.start();
+        for (int i = 1; i <= nr; i++) {
+            Reader reader = new Reader(r, i);
+            reader.start();
+        }
+        for (int i = 1; i <= nw; i++) {
+            Writer writer = new Writer(r, i);
+            writer.start();
+        }
     }
 }
